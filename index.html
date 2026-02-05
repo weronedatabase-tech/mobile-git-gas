@@ -4,93 +4,68 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MobileGit</title>
-    
-    <!-- ERROR HANDLER -->
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            const div = document.getElementById('error-box');
-            if(div) {
-                div.style.display = 'block';
-                div.innerHTML += `<p><strong>Error:</strong> ${msg}<br><small>${line}</small></p>`;
-            }
-            return false;
-        };
-    </script>
-
-    <!-- 1. Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Load Lucide Icons Library -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
     <style>
-        body { background-color: #0f172a; color: #f1f5f9; font-family: sans-serif; }
+        body { background-color: #0f172a; color: #f1f5f9; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
         .loader { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid #3b82f6; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #error-box { display: none; background: #ef4444; color: white; padding: 20px; margin: 20px; border-radius: 8px; font-family: monospace; word-break: break-all; }
-        /* Fix for iOS Safari text size adjustment */
-        textarea { -webkit-text-size-adjust: 100%; }
+        /* Prevent auto-zooming on inputs in iOS */
+        input, textarea { font-size: 16px !important; } 
     </style>
 </head>
 <body>
-
-    <!-- Loading UI (Removed by React) -->
-    <div id="loading-msg" class="text-center p-10 text-slate-500">
-        <div class="loader"></div>
-        <p>Initializing...</p>
-        <button onclick="localStorage.clear(); window.location.reload()" class="mt-6 text-xs text-blue-400 underline">Reset App Data</button>
+    <div id="root">
+        <div class="text-center p-10 text-slate-500">
+            <div class="loader"></div>
+            <p>Loading Modules...</p>
+        </div>
     </div>
 
-    <div id="error-box"></div>
-    <div id="root"></div>
-
-    <script type="text/babel" data-type="module">
+    <!-- PURE ESM IMPLEMENTATION -->
+    <script type="module">
+        // 1. Import Dependencies from reliable ESM CDN
+        import React, { useState, useEffect } from "https://esm.sh/react@18.2.0";
+        import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
         import { Octokit } from "https://esm.sh/@octokit/rest@20.0.1";
+        
+        // 2. Import Icons directly as React Components (Fixes the icon error)
+        import { 
+            Folder, FileCode, ArrowLeft, Save, LogOut, 
+            GitCommit, ChevronRight, Github, AlertCircle 
+        } from "https://esm.sh/lucide-react@0.292.0";
 
         // --- CONFIGURATION ---
         const GITHUB_CLIENT_ID = "YOUR_CLIENT_ID_HERE"; 
         const GAS_PROXY_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"; 
-        
-        const { useState, useEffect, useMemo } = React;
+
         const REDIRECT_URI = window.location.href.split('?')[0];
-
-        // --- 1. SAFE ICON COMPONENT (The Fix) ---
-        // This prevents the DOM conflict by rendering the SVG string safely
-        const Icon = ({ name, className }) => {
-            const svgHtml = useMemo(() => {
-                if (!window.lucide || !window.lucide.icons[name]) return "";
-                return window.lucide.icons[name].toSvg({ class: className || "" });
-            }, [name, className]);
-
-            if (!svgHtml) return <span className="text-xs text-red-500">?</span>;
-            return <span dangerouslySetInnerHTML={{ __html: svgHtml }} className="flex items-center" />;
-        };
 
         function App() {
             const [token, setToken] = useState(localStorage.getItem("gh_token"));
             const [view, setView] = useState("repos");
             const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
             
-            // Data
+            // Data State
             const [repos, setRepos] = useState([]);
             const [files, setFiles] = useState([]);
             const [currentRepo, setCurrentRepo] = useState(null);
             const [path, setPath] = useState("");
             
-            // Editor
+            // Editor State
             const [fileContent, setFileContent] = useState("");
             const [fileSha, setFileSha] = useState("");
             const [filePath, setFilePath] = useState("");
             const [commitMsg, setCommitMsg] = useState("Update via MobileGit");
 
-            // --- AUTH FLOW ---
+            // --- AUTH HANDLER ---
             useEffect(() => {
                 const urlParams = new URLSearchParams(window.location.search);
                 const code = urlParams.get("code");
+
                 if (code && !token) {
                     setLoading(true);
+                    // Clean the URL visually
                     window.history.replaceState({}, document.title, REDIRECT_URI);
                     
                     fetch(`${GAS_PROXY_URL}?code=${code}`)
@@ -103,14 +78,15 @@
                                 throw new Error(JSON.stringify(data));
                             }
                         })
-                        .catch(err => alert("Login Error: " + err.message))
+                        .catch(err => setError(err.message))
                         .finally(() => setLoading(false));
                 }
             }, [token]);
 
-            const octokit = new Octokit({ auth: token });
+            // --- GITHUB API INSTANCE ---
+            // Re-create Octokit only when token changes
+            const octokit = React.useMemo(() => new Octokit({ auth: token }), [token]);
 
-            // --- ACTIONS ---
             const login = () => {
                 window.location.href = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=repo`;
             };
@@ -120,56 +96,82 @@
                 setToken(null);
                 setRepos([]);
                 setView("repos");
+                setError(null);
             };
 
+            // --- API ACTIONS ---
             const loadRepos = async () => {
                 setLoading(true);
+                setError(null);
                 try {
                     const res = await octokit.repos.listForAuthenticatedUser({ sort: "updated", per_page: 30 });
                     setRepos(res.data);
                     setView("repos");
                 } catch(e) { 
+                    console.error(e);
                     if (e.status === 401) logout();
-                    else console.error(e);
+                    else setError("Failed to load repos: " + e.message);
                 }
                 setLoading(false);
             };
 
-            useEffect(() => { if(token) loadRepos(); }, [token]);
+            useEffect(() => { 
+                if(token) loadRepos(); 
+            }, [token]);
 
             const loadFiles = async (repo, dir = "") => {
                 setLoading(true);
+                setError(null);
                 try {
                     const res = await octokit.repos.getContent({ owner: repo.owner.login, repo: repo.name, path: dir });
                     const data = Array.isArray(res.data) ? res.data : [res.data];
+                    
+                    // Sort: Folders first
                     data.sort((a, b) => (b.type === "dir" ? 1 : 0) - (a.type === "dir" ? 1 : 0));
+                    
                     setFiles(data);
                     setCurrentRepo(repo);
                     setPath(dir);
                     setView("files");
-                } catch(e) { alert("Error loading folder"); }
+                } catch(e) { setError("Could not open folder. " + e.message); }
                 setLoading(false);
             };
 
             const openFile = async (file) => {
                 setLoading(true);
+                setError(null);
                 try {
                     const res = await octokit.repos.getContent({ owner: currentRepo.owner.login, repo: currentRepo.name, path: file.path });
-                    // Decode Unicode
-                    const content = new TextDecoder().decode(Uint8Array.from(atob(res.data.content.replace(/\n/g, "")), c => c.charCodeAt(0)));
+                    
+                    if (!res.data.content) throw new Error("File is empty or too large via API");
+
+                    // Decode Content (handle Unicode properly)
+                    const binaryString = atob(res.data.content.replace(/\n/g, ""));
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    const content = new TextDecoder().decode(bytes);
+
                     setFileContent(content);
                     setFileSha(res.data.sha);
                     setFilePath(file.path);
                     setView("editor");
-                } catch(e) { alert("Cannot open file (Binary/Large)"); }
+                } catch(e) { setError("Cannot read file. It might be binary or too large."); }
                 setLoading(false);
             };
 
             const saveFile = async () => {
                 setLoading(true);
                 try {
-                    // Encode Unicode
-                    const contentEncoded = btoa(new TextEncoder().encode(fileContent).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+                    // Encode Content to Base64 (Unicode safe)
+                    const bytes = new TextEncoder().encode(fileContent);
+                    let binaryString = "";
+                    for (let i = 0; i < bytes.byteLength; i++) {
+                        binaryString += String.fromCharCode(bytes[i]);
+                    }
+                    const contentEncoded = btoa(binaryString);
+
                     await octokit.repos.createOrUpdateFileContents({
                         owner: currentRepo.owner.login,
                         repo: currentRepo.name,
@@ -178,96 +180,140 @@
                         content: contentEncoded,
                         sha: fileSha
                     });
-                    alert("Saved!");
+                    
+                    alert("Committed successfully!");
+                    // Return to file list
                     loadFiles(currentRepo, path);
-                } catch(e) { alert("Save failed: " + e.message); }
+                } catch(e) { setError("Commit failed: " + e.message); }
                 setLoading(false);
             };
 
-            // --- RENDER ---
+            // --- UI RENDER ---
+
+            // 1. Not Logged In
             if (!token) {
                 return (
-                    <div className="flex flex-col items-center justify-center h-screen p-6">
+                    <div className="flex flex-col items-center justify-center h-screen p-6 animate-in fade-in duration-500">
                         <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">MobileGit</h1>
-                        <p className="mb-8 text-gray-400">Edit GitHub code on the go.</p>
+                        <p className="mb-8 text-gray-400 text-center">Cloud-native mobile editor</p>
+                        
+                        {error && (
+                            <div className="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-lg mb-6 max-w-sm text-sm">
+                                {error}
+                            </div>
+                        )}
+
                         {loading ? <div className="loader"></div> : 
                             <button onClick={login} className="bg-white text-black px-6 py-3 rounded-full font-bold flex items-center gap-2 shadow-lg active:scale-95 transition">
-                                <Icon name="Github" className="w-5 h-5" /> Login with GitHub
+                                <Github size={20} /> Login with GitHub
                             </button>
                         }
                     </div>
                 );
             }
 
+            // 2. Logged In Layout
             return (
-                <div className="pb-20 max-w-3xl mx-auto">
+                <div className="pb-20 max-w-3xl mx-auto min-h-screen flex flex-col">
                     {/* Header */}
                     <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between z-50 shadow-sm">
                         <div className="flex items-center gap-3 overflow-hidden">
                             {view !== "repos" && (
-                                <button onClick={() => {
-                                    if(view === 'editor') setView('files');
-                                    else if(view === 'files' && path) loadFiles(currentRepo, path.split('/').slice(0,-1).join('/'));
-                                    else loadRepos();
-                                }} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition"><Icon name="ArrowLeft" className="w-5 h-5 text-gray-300" /></button>
+                                <button 
+                                    onClick={() => {
+                                        if(view === 'editor') setView('files');
+                                        else if(view === 'files' && path) loadFiles(currentRepo, path.split('/').slice(0,-1).join('/'));
+                                        else loadRepos();
+                                    }} 
+                                    className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition"
+                                >
+                                    <ArrowLeft size={18} className="text-gray-300" />
+                                </button>
                             )}
                             <h1 className="font-bold truncate text-sm">
                                 {view === "repos" ? "Repositories" : view === "files" ? (path || "/") : filePath}
                             </h1>
                         </div>
-                        <button onClick={logout} className="text-gray-400 p-2 hover:text-white"><Icon name="LogOut" className="w-5 h-5" /></button>
+                        <button onClick={logout} className="text-gray-400 p-2 hover:text-white active:scale-90 transition">
+                            <LogOut size={18} />
+                        </button>
                     </div>
 
-                    {/* Main Content */}
-                    <div className="p-4">
-                        {loading && <div className="flex justify-center py-8"><div className="loader"></div></div>}
+                    {/* Error Banner */}
+                    {error && (
+                        <div className="m-4 p-3 bg-red-500/10 border border-red-500/50 rounded flex gap-3 text-red-200 text-sm items-start">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                            <span>{error}</span>
+                            <button onClick={() => setError(null)} className="ml-auto font-bold">✕</button>
+                        </div>
+                    )}
 
-                        {/* REPOS */}
+                    {/* Main Body */}
+                    <div className="p-4 flex-1 relative">
+                        {loading && (
+                            <div className="absolute inset-0 bg-slate-900/50 z-10 flex items-start justify-center pt-20">
+                                <div className="loader"></div>
+                            </div>
+                        )}
+
+                        {/* REPOS VIEW */}
                         {!loading && view === "repos" && (
                             <div className="space-y-3">
                                 {repos.map(repo => (
-                                    <div key={repo.id} onClick={() => loadFiles(repo)} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center active:bg-slate-700 transition cursor-pointer hover:border-slate-600">
+                                    <div key={repo.id} onClick={() => loadFiles(repo)} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center active:bg-slate-700 transition cursor-pointer group">
                                         <div>
-                                            <h3 className="font-semibold text-blue-100">{repo.name}</h3>
-                                            <p className="text-xs text-gray-400 mt-1">{repo.private ? "🔒 Private" : "Public"} • {repo.language}</p>
+                                            <h3 className="font-semibold text-blue-100 group-hover:text-white transition">{repo.name}</h3>
+                                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                                <span>{repo.private ? "🔒 Private" : "Public"}</span>
+                                                <span>•</span>
+                                                <span>{repo.language || "Text"}</span>
+                                            </div>
                                         </div>
-                                        <Icon name="ChevronRight" className="w-5 h-5 text-slate-600" />
+                                        <ChevronRight size={18} className="text-slate-600 group-hover:text-slate-400" />
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {/* FILES */}
+                        {/* FILES VIEW */}
                         {!loading && view === "files" && (
                             <div className="space-y-2">
                                 {files.map(file => (
-                                    <div key={file.sha} onClick={() => file.type === "dir" ? loadFiles(currentRepo, file.path) : openFile(file)} className="flex items-center gap-3 p-4 bg-slate-800 rounded-lg border border-slate-700 active:bg-slate-700 cursor-pointer hover:border-slate-600">
-                                        {file.type === "dir" ? <Icon name="Folder" className="w-5 h-5 text-blue-400" /> : <Icon name="FileCode" className="w-5 h-5 text-emerald-400" />}
+                                    <div key={file.sha} onClick={() => file.type === "dir" ? loadFiles(currentRepo, file.path) : openFile(file)} className="flex items-center gap-3 p-4 bg-slate-800 rounded-lg border border-slate-700 active:bg-slate-700 cursor-pointer hover:border-slate-600 transition">
+                                        {file.type === "dir" ? <Folder size={20} className="text-blue-400" /> : <FileCode size={20} className="text-emerald-400" />}
                                         <span className="truncate text-sm flex-1">{file.name}</span>
                                     </div>
                                 ))}
-                                {files.length === 0 && <p className="text-center text-gray-500 mt-4">Empty Directory</p>}
+                                {files.length === 0 && <div className="text-center text-gray-500 mt-10">Empty Directory</div>}
                             </div>
                         )}
 
-                        {/* EDITOR */}
+                        {/* EDITOR VIEW */}
                         {!loading && view === "editor" && (
-                            <div className="flex flex-col h-[75vh]">
+                            <div className="flex flex-col h-[calc(100vh-140px)]">
                                 <textarea 
-                                    className="flex-1 bg-slate-900 text-gray-200 p-4 rounded-lg font-mono text-sm border border-slate-700 resize-none focus:border-blue-500 transition-colors"
+                                    className="flex-1 bg-slate-900 text-gray-200 p-4 rounded-lg font-mono text-sm border border-slate-700 resize-none focus:border-blue-500 transition-colors focus:outline-none"
                                     value={fileContent}
                                     onChange={e => setFileContent(e.target.value)}
                                     spellCheck="false"
+                                    autoCapitalize="none"
                                 ></textarea>
+                                
                                 <div className="fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 p-3 flex gap-2 items-center z-50">
-                                    <input 
-                                        value={commitMsg}
-                                        onChange={e => setCommitMsg(e.target.value)}
-                                        className="flex-1 bg-slate-800 text-white rounded px-3 py-2 text-sm border border-transparent focus:border-blue-500"
-                                        placeholder="Commit message..."
-                                    />
-                                    <button onClick={saveFile} className="bg-green-600 text-white p-2.5 rounded-lg active:scale-95 transition shadow-lg">
-                                        <Icon name="Save" className="w-5 h-5" />
+                                    <div className="relative flex-1">
+                                        <GitCommit size={16} className="absolute left-3 top-3 text-slate-500" />
+                                        <input 
+                                            value={commitMsg}
+                                            onChange={e => setCommitMsg(e.target.value)}
+                                            className="w-full bg-slate-800 text-white rounded px-3 pl-9 py-2 text-sm border border-transparent focus:border-blue-500 focus:outline-none"
+                                            placeholder="Commit message..."
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={saveFile} 
+                                        className="bg-green-600 text-white p-2.5 rounded-lg active:scale-95 transition shadow-lg flex items-center justify-center"
+                                    >
+                                        <Save size={20} />
                                     </button>
                                 </div>
                             </div>
@@ -277,16 +323,9 @@
             );
         }
 
-        // Render React App
-        const rootEl = document.getElementById('root');
-        if(rootEl) {
-            const root = ReactDOM.createRoot(rootEl);
-            root.render(<App />);
-            
-            // Remove the loading spinner from the DOM to prevent conflict
-            const loader = document.getElementById('loading-msg');
-            if(loader) loader.remove();
-        }
+        // Mount App
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
