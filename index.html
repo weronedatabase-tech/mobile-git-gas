@@ -13,9 +13,12 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         textarea, input { font-size: 16px !important; }
         #error-box { display: none; margin: 20px; padding: 15px; background: #7f1d1d; border: 1px solid #ef4444; color: #fecaca; border-radius: 8px; font-family: monospace; word-break: break-all; }
+        
+        /* Modal Backdrop */
+        .modal-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     </style>
 
-    <!-- 2. Babel (Compiles JSX in the browser) -->
+    <!-- 2. Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
@@ -29,12 +32,8 @@
     <div id="error-box"></div>
     <div id="root"></div>
 
-    <!-- 3. THE SCRIPT 
-         Note: type="text/babel" allows JSX. 
-         data-type="module" allows ES Imports. 
-    -->
+    <!-- 3. SCRIPT -->
     <script type="text/babel" data-type="module">
-        // Import Dependencies
         import React, { useState, useEffect, useMemo } from "https://esm.sh/react@18.2.0";
         import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
         import { Octokit } from "https://esm.sh/@octokit/rest@20.0.1";
@@ -43,7 +42,7 @@
         const GITHUB_CLIENT_ID = "Ov23liwbmxvn9qmImYMZ"; 
         const GAS_PROXY_URL = "https://script.google.com/macros/s/AKfycbw83udtxsHNQ2bnJLikBePT6QM3-hkNWf-8Rci7QhXPYQAasSLEo_snW0n1uK6SQDaY/exec"; 
         
-        // --- INLINE ICONS (JSX) ---
+        // --- ICONS ---
         const Icons = {
             Folder: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 w-6 h-6"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>,
             File: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 w-6 h-6"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>,
@@ -51,7 +50,12 @@
             Save: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
             Logout: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
             Git: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="3"/><line x1="12" x2="12" y1="3" y2="9"/><line x1="12" x2="12" y1="15" y2="21"/></svg>,
-            Private: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline w-3 h-3 mb-0.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Private: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline w-3 h-3 mb-0.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+            Zap: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>,
+            Globe: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         };
 
         function App() {
@@ -72,7 +76,12 @@
             const [filePath, setFilePath] = useState("");
             const [commitMsg, setCommitMsg] = useState("Update via MobileGit");
 
-            // Handle UI Loading State
+            // UI State
+            const [showCreateModal, setShowCreateModal] = useState(false);
+            const [newRepoName, setNewRepoName] = useState("");
+            const [repoMenu, setRepoMenu] = useState(null); // ID of repo with open menu
+
+            // Hide Loading UI
             useEffect(() => {
                 const loader = document.getElementById('loading-ui');
                 if(loader) loader.style.display = 'none';
@@ -103,15 +112,16 @@
                 }
             }, [token]);
 
-            // Octokit Instance
             const octokit = useMemo(() => {
                 if(!token) return null;
                 return new Octokit({ auth: token });
             }, [token]);
 
+            // --- AUTH ---
             const login = () => {
                 const REDIRECT_URI = window.location.href.split('?')[0];
-                window.location.href = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=repo`;
+                // UPDATED SCOPE: Added delete_repo
+                window.location.href = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=repo,delete_repo`;
             };
 
             const logout = () => {
@@ -122,7 +132,7 @@
                 setError(null);
             };
 
-            // Actions
+            // --- REPO ACTIONS ---
             const loadRepos = async () => {
                 if(!octokit) return;
                 setLoading(true);
@@ -132,7 +142,6 @@
                     setRepos(res.data);
                     setView("repos");
                 } catch(e) { 
-                    console.error(e);
                     if (e.status === 401) logout();
                     else setError("Failed to load repos: " + e.message);
                 }
@@ -141,6 +150,70 @@
 
             useEffect(() => { if(token) loadRepos(); }, [token, octokit]);
 
+            const createRepo = async () => {
+                if(!newRepoName) return;
+                setLoading(true);
+                try {
+                    await octokit.repos.createForAuthenticatedUser({
+                        name: newRepoName,
+                        auto_init: true // Creates README.md
+                    });
+                    setNewRepoName("");
+                    setShowCreateModal(false);
+                    await loadRepos(); // Refresh
+                } catch(e) {
+                    alert("Create failed: " + e.message);
+                }
+                setLoading(false);
+            };
+
+            const deleteRepo = async (repo) => {
+                const confirmName = prompt(`DANGER: To delete '${repo.name}', type its name below:`);
+                if (confirmName !== repo.name) {
+                    alert("Name mismatch. Deletion cancelled.");
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    await octokit.repos.delete({
+                        owner: repo.owner.login,
+                        repo: repo.name
+                    });
+                    setRepoMenu(null);
+                    setRepos(repos.filter(r => r.id !== repo.id)); // Optimistic UI update
+                } catch(e) {
+                    alert("Delete failed. Check permissions (Logout/Login).");
+                }
+                setLoading(false);
+            };
+
+            const enablePages = async (repo) => {
+                setLoading(true);
+                try {
+                    await octokit.repos.createPagesSite({
+                        owner: repo.owner.login,
+                        repo: repo.name,
+                        source: {
+                            branch: 'main',
+                            path: '/'
+                        }
+                    });
+                    alert("GitHub Pages deployment triggered! It may take a minute to go live.");
+                    setRepoMenu(null);
+                } catch(e) {
+                    if(e.status === 409) alert("Pages already enabled!");
+                    else alert("Failed to enable Pages: " + e.message);
+                }
+                setLoading(false);
+            };
+
+            const launchSite = (repo) => {
+                const url = `https://${repo.owner.login}.github.io/${repo.name}/`;
+                window.open(url, '_blank');
+            };
+
+            // --- FILE ACTIONS ---
             const loadFiles = async (repo, dir = "") => {
                 setLoading(true);
                 setError(null);
@@ -163,7 +236,6 @@
                     const res = await octokit.repos.getContent({ owner: currentRepo.owner.login, repo: currentRepo.name, path: file.path });
                     if (!res.data.content) throw new Error("File empty/large");
                     
-                    // Decode Unicode Safe
                     const binaryString = atob(res.data.content.replace(/\n/g, ""));
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
@@ -180,7 +252,6 @@
             const saveFile = async () => {
                 setLoading(true);
                 try {
-                    // Encode Unicode Safe
                     const bytes = new TextEncoder().encode(fileContent);
                     let binaryString = "";
                     for (let i = 0; i < bytes.byteLength; i++) binaryString += String.fromCharCode(bytes[i]);
@@ -206,9 +277,7 @@
                     <div className="flex flex-col items-center justify-center h-screen p-6 animate-in fade-in">
                         <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">MobileGit</h1>
                         <p className="mb-8 text-gray-400 text-center">Cloud-native mobile editor</p>
-                        
                         {error && <div className="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded mb-6 text-sm">{error}</div>}
-
                         {loading ? <div className="loader"></div> : 
                             <button onClick={login} className="bg-white text-black px-6 py-3 rounded-full font-bold flex items-center gap-2 shadow-lg active:scale-95 transition">
                                 <Icons.Git /> Login with GitHub
@@ -219,7 +288,7 @@
             }
 
             return (
-                <div className="pb-20 max-w-3xl mx-auto min-h-screen flex flex-col">
+                <div className="pb-20 max-w-3xl mx-auto min-h-screen flex flex-col relative">
                     {/* Header */}
                     <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4 flex items-center justify-between z-50 shadow-sm">
                         <div className="flex items-center gap-3 overflow-hidden">
@@ -236,7 +305,14 @@
                                 {view === "repos" ? "Repositories" : view === "files" ? (path || "/") : filePath}
                             </h1>
                         </div>
-                        <button onClick={logout} className="text-gray-400 p-2 hover:text-white"><Icons.Logout /></button>
+                        <div className="flex items-center gap-2">
+                            {view === "repos" && (
+                                <button onClick={() => setShowCreateModal(true)} className="p-2 bg-blue-600 text-white rounded-full active:scale-90 transition">
+                                    <Icons.Plus />
+                                </button>
+                            )}
+                            <button onClick={logout} className="text-gray-400 p-2 hover:text-white"><Icons.Logout /></button>
+                        </div>
                     </div>
 
                     {/* Error */}
@@ -247,27 +323,75 @@
                         </div>
                     )}
 
-                    {/* Body */}
+                    {/* CREATE MODAL */}
+                    {showCreateModal && (
+                        <div className="modal-bg">
+                            <div className="bg-slate-800 p-6 rounded-xl w-11/12 max-w-sm border border-slate-700 shadow-2xl">
+                                <h3 className="text-xl font-bold mb-4">New Repository</h3>
+                                <input 
+                                    autoFocus
+                                    placeholder="Repo Name" 
+                                    className="w-full bg-slate-900 border border-slate-600 rounded p-3 mb-4 text-white focus:border-blue-500 outline-none"
+                                    value={newRepoName}
+                                    onChange={e => setNewRepoName(e.target.value)}
+                                />
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowCreateModal(false)} className="flex-1 py-3 text-gray-400 font-bold bg-slate-700 rounded-lg">Cancel</button>
+                                    <button onClick={createRepo} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg">Create</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Main Content */}
                     <div className="p-4 flex-1 relative">
                         {loading && <div className="absolute inset-0 bg-slate-900/50 z-10 flex items-start justify-center pt-20"><div className="loader"></div></div>}
 
+                        {/* REPOS VIEW */}
                         {!loading && view === "repos" && (
                             <div className="space-y-3">
                                 {repos.map(repo => (
-                                    <div key={repo.id} onClick={() => loadFiles(repo)} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center active:bg-slate-700 transition cursor-pointer group">
-                                        <div>
-                                            <h3 className="font-semibold text-blue-100">{repo.name}</h3>
-                                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                                                <span>{repo.private ? <Icons.Private /> : "Public"}</span>
-                                                <span>•</span>
-                                                <span>{repo.language || "Text"}</span>
+                                    <div key={repo.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden relative">
+                                        {/* Main Click Area */}
+                                        <div onClick={() => loadFiles(repo)} className="p-4 flex justify-between items-center active:bg-slate-700 transition cursor-pointer pr-14">
+                                            <div>
+                                                <h3 className="font-semibold text-blue-100">{repo.name}</h3>
+                                                <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                                    <span>{repo.private ? <Icons.Private /> : "Public"}</span>
+                                                    <span>•</span>
+                                                    <span>{repo.language || "Text"}</span>
+                                                </div>
                                             </div>
                                         </div>
+
+                                        {/* Settings Button */}
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setRepoMenu(repoMenu === repo.id ? null : repo.id); }}
+                                            className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center bg-slate-800 border-l border-slate-700 active:bg-slate-600"
+                                        >
+                                            <Icons.Zap /> {/* Using Zap icon as generic 'Action' icon */}
+                                        </button>
+
+                                        {/* EXPANDED MENU */}
+                                        {repoMenu === repo.id && (
+                                            <div className="bg-slate-900 border-t border-slate-700 p-2 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-top-2">
+                                                <button onClick={() => enablePages(repo)} className="flex flex-col items-center gap-1 p-2 bg-slate-800 rounded text-xs text-yellow-400 active:bg-slate-700">
+                                                    <Icons.Zap /> Enable Pages
+                                                </button>
+                                                <button onClick={() => launchSite(repo)} className="flex flex-col items-center gap-1 p-2 bg-slate-800 rounded text-xs text-blue-400 active:bg-slate-700">
+                                                    <Icons.Globe /> Launch Site
+                                                </button>
+                                                <button onClick={() => deleteRepo(repo)} className="flex flex-col items-center gap-1 p-2 bg-slate-800 rounded text-xs text-red-400 active:bg-slate-700">
+                                                    <Icons.Trash /> Delete Repo
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                         )}
 
+                        {/* FILES VIEW */}
                         {!loading && view === "files" && (
                             <div className="space-y-2">
                                 {files.map(file => (
@@ -280,6 +404,7 @@
                             </div>
                         )}
 
+                        {/* EDITOR VIEW */}
                         {!loading && view === "editor" && (
                             <div className="flex flex-col h-[calc(100vh-140px)]">
                                 <textarea 
