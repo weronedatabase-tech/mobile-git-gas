@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MobileGit</title>
     
-    <!-- 1. Global Error Handler (Shows errors on screen instead of black/loading screen) -->
+    <!-- 1. Global Error Handler -->
     <script>
         window.onerror = function(msg, url, line, col, error) {
             document.getElementById('loading-ui').style.display = 'none';
@@ -16,45 +16,40 @@
         };
     </script>
 
-    <!-- 2. Tailwind CSS -->
+    <!-- 2. Styles -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- 3. React & Dependencies (Standard UMD - More reliable than Modules) -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/@octokit/rest@18.12.0/dist/index.js"></script> <!-- Older stable UMD version -->
-
     <style>
         body { background-color: #0f172a; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
         .loader { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid #3b82f6; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* iOS Text Size Fix */
         textarea, input { font-size: 16px !important; }
         #error-box { display: none; margin: 20px; padding: 15px; background: #7f1d1d; border: 1px solid #ef4444; color: #fecaca; border-radius: 8px; font-family: monospace; word-break: break-all; }
     </style>
 </head>
 <body>
 
-    <!-- Initial Loading State -->
+    <!-- Loading State -->
     <div id="loading-ui" class="text-center p-10 text-slate-500">
         <div class="loader"></div>
-        <p id="loading-text">Initializing...</p>
+        <p>Initializing Modules...</p>
         <button onclick="localStorage.clear(); window.location.reload()" class="mt-8 text-xs text-blue-400 underline">Reset App Data</button>
     </div>
 
     <div id="error-box"></div>
     <div id="root"></div>
 
-    <script type="text/babel">
+    <!-- 3. MAIN APPLICATION (ESM) -->
+    <script type="module">
+        // Import Dependencies directly as Modules (Reliable)
+        import React, { useState, useEffect, useMemo } from "https://esm.sh/react@18.2.0";
+        import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
+        import { Octokit } from "https://esm.sh/@octokit/rest@20.0.1";
+
         // --- CONFIGURATION ---
         const GITHUB_CLIENT_ID = "Ov23liwbmxvn9qmImYMZ"; 
         const GAS_PROXY_URL = "https://script.google.com/macros/s/AKfycbw83udtxsHNQ2bnJLikBePT6QM3-hkNWf-8Rci7QhXPYQAasSLEo_snW0n1uK6SQDaY/exec"; 
         
-        const { useState, useEffect, useMemo } = React;
-        const { Octokit } = window; // Access Global UMD variable
-
-        // --- INLINE ICONS (No external dependency = No loading errors) ---
+        // --- INLINE ICONS (No external dependency = Fast load) ---
         const Icons = {
             Folder: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 w-6 h-6"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>,
             File: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 w-6 h-6"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>,
@@ -83,7 +78,7 @@
             const [filePath, setFilePath] = useState("");
             const [commitMsg, setCommitMsg] = useState("Update via MobileGit");
 
-            // Hide Loading UI when App Mounts
+            // Hide Loading UI when React Mounts
             useEffect(() => {
                 const loader = document.getElementById('loading-ui');
                 if(loader) loader.style.display = 'none';
@@ -174,7 +169,7 @@
                     const res = await octokit.repos.getContent({ owner: currentRepo.owner.login, repo: currentRepo.name, path: file.path });
                     if (!res.data.content) throw new Error("File empty/large");
                     
-                    // Decode
+                    // Decode Unicode Safe
                     const binaryString = atob(res.data.content.replace(/\n/g, ""));
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
@@ -191,7 +186,7 @@
             const saveFile = async () => {
                 setLoading(true);
                 try {
-                    // Encode
+                    // Encode Unicode Safe
                     const bytes = new TextEncoder().encode(fileContent);
                     let binaryString = "";
                     for (let i = 0; i < bytes.byteLength; i++) binaryString += String.fromCharCode(bytes[i]);
@@ -317,7 +312,7 @@
             );
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
+        const root = createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
