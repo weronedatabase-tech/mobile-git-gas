@@ -1,0 +1,15 @@
+{
+  "name": "MobileGit",
+  "short_name": "MobileGit",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://github.githubassets.com/assets/GitHub-Mark-ea2971cee799.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
