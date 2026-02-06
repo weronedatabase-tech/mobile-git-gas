@@ -25,9 +25,7 @@
         }
     </script>
     <style>
-        /* Lock body to viewport height to prevent bounce and ensure full height editor */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); height: 100vh; overflow: hidden; }
-        
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); min-height: 100vh; }
         .loader { border: 3px solid rgba(128,128,128,0.3); border-radius: 50%; border-top: 3px solid #3b82f6; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         textarea, input, select { font-size: 14px !important; }
@@ -51,7 +49,7 @@
     </div>
 
     <div id="error-box"></div>
-    <div id="root" class="h-full"></div>
+    <div id="root"></div>
     <div id="toast" class="toast">Message</div>
 
     <script type="text/babel" data-type="module">
@@ -91,6 +89,7 @@
             useEffect(() => { document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem("theme", theme); }, [theme]);
             const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
+            // --- STATE ---
             const [service, setService] = useState(localStorage.getItem("service") || "git");
             const [ghToken, setGhToken] = useState(localStorage.getItem("gh_token"));
             const [gasToken, setGasToken] = useState(localStorage.getItem("gas_token"));
@@ -115,6 +114,7 @@
             const [showGlobalMenu, setShowGlobalMenu] = useState(false);
             const [manualPasteText, setManualPasteText] = useState("");
 
+            // GAS Config
             const [gasAccess, setGasAccess] = useState("ANYONE_ANONYMOUS");
             const [gasExecute, setGasExecute] = useState("USER_DEPLOYING");
 
@@ -153,6 +153,7 @@
                 setRepos([]); setView("repos"); setShowGlobalMenu(false);
             };
 
+            // --- API CLIENTS ---
             const octokit = useMemo(() => ghToken ? new Octokit({ auth: ghToken }) : null, [ghToken]);
             
             const gasFetch = async (url, method = "GET", body = null) => {
@@ -166,10 +167,12 @@
                     const err = await res.json();
                     throw new Error(err.error?.message || "GAS API Error");
                 }
+                // FIX: Check for No Content (Delete returns 204)
+                if (res.status === 204) return null;
                 return res.json();
             };
 
-            // --- DATA LOADING ---
+            // --- LOAD DATA ---
             const loadData = async () => {
                 setLoading(true); setError(null);
                 try {
@@ -228,6 +231,7 @@
                 setLoading(false);
             };
 
+            // --- SAVE / DELETE / RENAME LOGIC ---
             const saveFile = async () => {
                 setLoading(true);
                 try {
@@ -333,6 +337,7 @@
                 setLoading(false);
             };
 
+            // --- ACTIONS ---
             const handleCreate = async () => {
                 if(!inputName) return;
                 
@@ -512,7 +517,7 @@
                                         <div className="flex divide-x divide-gray-200 dark:divide-slate-700 bg-gray-50 dark:bg-slate-800/50">
                                             {service === 'git' ? (
                                                 <>
-                                                    <button onClick={(e) => { e.stopPropagation(); enablePages(r); }} className="flex-1 p-2 flex justify-center text-yellow-500"><Icons.Zap /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); alert("Pages"); }} className="flex-1 p-2 flex justify-center text-yellow-500"><Icons.Zap /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); window.open(`https://${r.owner.login}.github.io/${r.name}/`); }} className="flex-1 p-2 flex justify-center text-blue-500"><Icons.Globe /></button>
                                                     <button onClick={(e) => repoAction('delete', r, e)} className="flex-1 p-2 flex justify-center text-red-500"><Icons.Trash /></button>
                                                 </>
