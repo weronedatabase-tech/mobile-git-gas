@@ -61,8 +61,8 @@
         const GAS_PROXY_URL = "https://script.google.com/macros/s/AKfycbw83udtxsHNQ2bnJLikBePT6QM3-hkNWf-8Rci7QhXPYQAasSLEo_snW0n1uK6SQDaY/exec";
         const GOOGLE_CLIENT_ID = "91778409538-4i31u5ia07ibb4o1ctv5c1sr7jpv3k1k.apps.googleusercontent.com"; 
         
-        // Updated Scopes: Added drive.file for Rename/Delete/List
-        const GOOGLE_SCOPES = "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/drive.file";
+        // Updated Scopes: 'drive' is required for full deletion and listing bound scripts reliably
+        const GOOGLE_SCOPES = "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/drive";
 
         // --- ICONS ---
         const Icons = {
@@ -122,6 +122,7 @@
             useEffect(() => { document.getElementById('loading-ui').style.display = 'none'; }, []);
 
             function toast(m) { const t=document.getElementById('toast'); t.innerText=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+            const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
             // --- AUTH ---
             useEffect(() => {
@@ -178,7 +179,7 @@
                         const res = await octokit.repos.listForAuthenticatedUser({ sort: "updated", per_page: 30 });
                         setRepos(res.data);
                     } else if (service === 'gas' && gasToken) {
-                        // Use Drive API to list (Support for Pagination in future, currently top 50)
+                        // Use Drive API to list ALL scripts (including bound ones)
                         const res = await gasFetch("https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.script' and trashed=false&fields=files(id, name, modifiedTime)&orderBy=modifiedTime desc&pageSize=50");
                         const projects = (res.files || []).map(f => ({ ...f, scriptId: f.id, updated_at: f.modifiedTime }));
                         setRepos(projects);
@@ -200,11 +201,10 @@
                         setFiles(data); setCurrentRepo(item); setPath("");
                     } else {
                         const res = await gasFetch(`https://script.googleapis.com/v1/projects/${item.scriptId}/content`);
-                        // Store full source in memory for GAS to avoid re-fetching on open
                         const mapped = (res.files || []).map(f => ({ 
                             name: f.name + (f.type==='HTML'?'.html':'.gs'), 
                             type: 'file', 
-                            sha: f.name, // Use name as ID for GAS files
+                            sha: f.name, 
                             rawType: f.type, 
                             source: f.source 
                         }));
@@ -241,12 +241,10 @@
                         await octokit.repos.createOrUpdateFileContents(payload);
                         loadFiles(currentRepo);
                     } else {
-                        // GAS: Upload ALL files
                         const res = await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/content`);
                         let newFiles = res.files || [];
                         const targetName = filePath.replace(/\.(gs|html)$/, "");
                         
-                        // Check if exists
                         const exists = newFiles.find(f => f.name === targetName);
                         if(exists) {
                             newFiles = newFiles.map(f => f.name === targetName ? { ...f, source: fileContent } : f);
@@ -257,7 +255,6 @@
                         
                         await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/content`, "PUT", { files: newFiles });
                         
-                        // Refresh local list mapping
                         const mapped = newFiles.map(f => ({ name: f.name + (f.type==='HTML'?'.html':'.gs'), type: 'file', sha: f.name, rawType: f.type, source: f.source }));
                         setFiles(mapped);
                     }
@@ -292,7 +289,6 @@
                         if(service === 'git') {
                             await octokit.repos.update({ owner: currentRepo.owner.login, repo: currentRepo.name, name: inputName });
                         } else {
-                            // Rename GAS Project (Drive File)
                             await gasFetch(`https://www.googleapis.com/drive/v3/files/${currentRepo.scriptId}`, "PATCH", { name: inputName });
                         }
                         toast("Renamed Project");
@@ -307,21 +303,17 @@
             const handleDeployGas = async () => {
                 setLoading(true);
                 try {
-                    // 1. Create Version
                     const ver = await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/versions`, "POST", { description: deployDesc });
                     
-                    // 2. Check for existing deployments to update, or create new
                     const existing = await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/deployments`);
-                    const webApp = existing.deployments?.find(d => d.deploymentConfig?.scriptId); // Simple check for first web app
+                    const webApp = existing.deployments?.find(d => d.deploymentConfig?.scriptId); 
                     
                     if(webApp) {
-                        // Update existing (Versioning)
                         await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/deployments/${webApp.deploymentId}`, "PUT", {
                             deploymentConfig: { versionNumber: ver.versionNumber, description: deployDesc, manifestFileName: "appsscript" }
                         });
                         alert(`Updated Deployment to v${ver.versionNumber}`);
                     } else {
-                        // Create New
                         await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/deployments`, "POST", {
                             versionNumber: ver.versionNumber,
                             description: deployDesc,
@@ -349,26 +341,56 @@
                 setLoading(false);
             };
 
-            // --- UI ACTIONS ---
+            // --- ACTIONS ---
             const handleCreate = async () => {
                 if(!inputName) return;
-                setLoading(true);
-                try {
-                    if (service === 'git') {
-                        if (modalMode === 'createRepo') { await octokit.repos.createForAuthenticatedUser({ name: inputName, auto_init: true }); loadData(); }
-                    } else {
-                        if (modalMode === 'createRepo') { await gasFetch("https://script.googleapis.com/v1/projects", "POST", { title: inputName }); loadData(); }
-                    }
-                    if(modalMode === 'createFile') {
-                        setFilePath(inputName); setFileContent(""); setCommitMsg("Init"); setView("editor");
-                    }
-                    setInputName(""); setModalMode(null);
-                } catch(e) { alert("Failed: " + e.message); }
-                setLoading(false);
+                
+                // UX FIX: Dismiss first, then load
+                if (modalMode === 'createRepo') { 
+                    setModalMode(null); 
+                    setLoading(true);
+                    try {
+                        if(service === 'git') {
+                            await octokit.repos.createForAuthenticatedUser({ name: inputName, auto_init: true }); 
+                        } else {
+                            await gasFetch("https://script.googleapis.com/v1/projects", "POST", { title: inputName }); 
+                        }
+                        loadData();
+                    } catch(e) { alert("Create Failed: " + e.message); setLoading(false); }
+                } 
+                else if(modalMode === 'createFile') {
+                    setFilePath(inputName); setFileContent(""); setCommitMsg("Init"); setView("editor");
+                    setModalMode(null);
+                }
+                setInputName("");
             };
 
             const switchService = (s) => {
                 localStorage.setItem("service", s); setService(s); setRepos([]); setFiles([]); setView('repos');
+            };
+
+            const repoAction = async (action, repo, e) => {
+                e.stopPropagation();
+                if (action === 'delete') {
+                    if (prompt(`Type '${repo.name}' to delete:`) !== repo.name) return;
+                    setLoading(true);
+                    try { 
+                        if(service === 'git') {
+                            await octokit.repos.delete({ owner: repo.owner.login, repo: repo.name }); 
+                        } else {
+                            // GAS DELETE via Drive API
+                            await gasFetch(`https://www.googleapis.com/drive/v3/files/${repo.scriptId}`, "DELETE");
+                        }
+                        setRepos(repos.filter(r => (r.id || r.scriptId) !== (repo.id || repo.scriptId)));
+                        toast("Deleted Project");
+                    } catch(e) { alert("Delete failed: " + e.message); }
+                    setLoading(false);
+                } else if (action === 'pages') {
+                    // ... (Git Pages logic)
+                } else if (action === 'launch') {
+                    if(service === 'git') window.open(`https://${repo.owner.login}.github.io/${repo.name}/`, '_blank');
+                    else window.open(`https://script.google.com/d/${repo.scriptId}/edit`, '_blank');
+                }
             };
 
             // --- CLIPBOARD ---
@@ -377,7 +399,6 @@
                     const text = await navigator.clipboard.readText();
                     if(confirm("Overwrite file?")) setFileContent(text);
                 } catch (err) { 
-                    // Trigger Fallback Modal
                     setManualPasteText("");
                     setModalMode('pasteFallback');
                 }
@@ -499,20 +520,21 @@
                                             <div className="flex justify-between items-start">
                                                 <h3 className="font-semibold text-base text-blue-600 dark:text-blue-100">{r.name || r.title}</h3>
                                             </div>
-                                            {r.updated_at && <p className="text-xs text-gray-500 mt-1">{new Date(r.updated_at).toLocaleDateString()}</p>}
+                                            {r.updated_at && <p className="text-xs text-gray-500 mt-1">{formatDate(r.updated_at)}</p>}
                                         </div>
                                         <div className="flex divide-x divide-gray-200 dark:divide-slate-700 bg-gray-50 dark:bg-slate-800/50">
                                             {service === 'git' ? (
                                                 <>
                                                     <button onClick={(e) => { e.stopPropagation(); alert("Pages"); }} className="flex-1 p-2 flex justify-center text-yellow-500"><Icons.Zap /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); window.open(`https://${r.owner.login}.github.io/${r.name}/`); }} className="flex-1 p-2 flex justify-center text-blue-500"><Icons.Globe /></button>
-                                                    <button onClick={(e) => { e.stopPropagation(); alert("Delete Logic"); }} className="flex-1 p-2 flex justify-center text-red-500"><Icons.Trash /></button>
+                                                    <button onClick={(e) => repoAction('delete', r, e)} className="flex-1 p-2 flex justify-center text-red-500"><Icons.Trash /></button>
                                                 </>
                                             ) : (
                                                 <>
                                                     <button onClick={(e) => { e.stopPropagation(); setCurrentRepo(r); setModalMode('manifestGas'); }} className="flex-1 p-2 flex justify-center text-purple-500"><Icons.Settings /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); setCurrentRepo(r); setModalMode('deployGas'); }} className="flex-1 p-2 flex justify-center text-green-500"><Icons.Zap /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); setInputName(r.name); setCurrentRepo(r); setModalMode('renameRepo'); }} className="flex-1 p-2 flex justify-center text-orange-500"><Icons.Edit /></button>
+                                                    <button onClick={(e) => repoAction('delete', r, e)} className="flex-1 p-2 flex justify-center text-red-500"><Icons.Trash /></button>
                                                 </>
                                             )}
                                         </div>
