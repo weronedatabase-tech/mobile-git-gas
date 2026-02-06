@@ -2,18 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Viewport updated for PWA "Safe Areas" (Notches/Home Bars) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>MobileGit</title>
     
     <!-- PWA MANIFEST LINK -->
     <link rel="manifest" href="manifest.json">
 
-    <!-- iOS PWA SETTINGS (Apple requires specific meta tags) -->
+    <!-- APP ICONS -->
+    <!-- Browser Tab -->
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <!-- iOS Home Screen -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- iOS PWA SETTINGS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
-    <link rel="apple-touch-icon" href="https://github.githubassets.com/assets/GitHub-Mark-ea2971cee799.png">
 
     <!-- 1. Styles -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -197,7 +201,7 @@
                 }
             };
 
-            // --- ENTER KEY HANDLER ---
+            // Enter key handler for modals
             const handleKeyDown = (e) => {
                 if(e.key === 'Enter') {
                     e.preventDefault();
