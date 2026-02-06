@@ -36,7 +36,6 @@
         .menu-dropdown { position: absolute; top: 50px; right: 8px; width: 200px; z-index: 60; }
     </style>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body class="bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-gray-100 transition-colors duration-200">
@@ -55,15 +54,13 @@
         import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
         import { Octokit } from "https://esm.sh/@octokit/rest@20.0.1";
 
-        // --- CONFIG ---
         const GITHUB_CLIENT_ID = "Ov23liwbmxvn9qmImYMZ"; 
         const GAS_PROXY_URL = "https://script.google.com/macros/s/AKfycbw83udtxsHNQ2bnJLikBePT6QM3-hkNWf-8Rci7QhXPYQAasSLEo_snW0n1uK6SQDaY/exec";
         
-        // --- GOOGLE AUTH CONFIG ---
         const GOOGLE_CLIENT_ID = "91778409538-4i31u5ia07ibb4o1ctv5c1sr7jpv3k1k.apps.googleusercontent.com"; 
-        const GOOGLE_SCOPES = "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments";
+        // ADDED: drive.metadata.readonly to list files
+        const GOOGLE_SCOPES = "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/drive.metadata.readonly";
 
-        // Compact Icons
         const Icons = {
             Folder: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 w-5 h-5"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>,
             File: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 w-5 h-5"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>,
@@ -88,8 +85,7 @@
             useEffect(() => { document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem("theme", theme); }, [theme]);
             const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
-            // --- STATE ---
-            const [service, setService] = useState(localStorage.getItem("service") || "git"); // 'git' or 'gas'
+            const [service, setService] = useState(localStorage.getItem("service") || "git");
             const [ghToken, setGhToken] = useState(localStorage.getItem("gh_token"));
             const [gasToken, setGasToken] = useState(localStorage.getItem("gas_token"));
             
@@ -97,30 +93,27 @@
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             
-            const [repos, setRepos] = useState([]); // Or GAS projects
+            const [repos, setRepos] = useState([]);
             const [files, setFiles] = useState([]);
-            const [currentRepo, setCurrentRepo] = useState(null); // Or GAS project ID
+            const [currentRepo, setCurrentRepo] = useState(null);
             const [path, setPath] = useState("");
             
             const [fileContent, setFileContent] = useState("");
-            const [fileSha, setFileSha] = useState(""); // Or GAS file ID
+            const [fileSha, setFileSha] = useState(""); 
             const [filePath, setFilePath] = useState("");
             const [commitMsg, setCommitMsg] = useState("Update");
             
-            const [modalMode, setModalMode] = useState(null); // 'createRepo', 'createFile', 'deployGas', 'manifestGas'
+            const [modalMode, setModalMode] = useState(null);
             const [inputName, setInputName] = useState("");
             const [deployDesc, setDeployDesc] = useState("New Version");
             const [showGlobalMenu, setShowGlobalMenu] = useState(false);
 
-            // GAS Manifest State
             const [gasAccess, setGasAccess] = useState("ANYONE_ANONYMOUS");
             const [gasExecute, setGasExecute] = useState("USER_DEPLOYING");
 
             useEffect(() => { document.getElementById('loading-ui').style.display = 'none'; }, []);
 
-            // --- AUTH LOGIC ---
             useEffect(() => {
-                // Git Auth
                 const urlParams = new URLSearchParams(window.location.search);
                 const code = urlParams.get("code");
                 if (code && !ghToken) {
@@ -132,7 +125,6 @@
                 }
             }, [ghToken]);
 
-            // Google Auth Handler
             const googleLogin = () => {
                 const client = google.accounts.oauth2.initTokenClient({
                     client_id: GOOGLE_CLIENT_ID,
@@ -154,7 +146,6 @@
                 setRepos([]); setView("repos"); setShowGlobalMenu(false);
             };
 
-            // --- API HELPERS ---
             const octokit = useMemo(() => ghToken ? new Octokit({ auth: ghToken }) : null, [ghToken]);
             
             const gasFetch = async (url, method = "GET", body = null) => {
@@ -171,7 +162,6 @@
                 return res.json();
             };
 
-            // --- DATA LOADING ---
             const loadData = async () => {
                 setLoading(true); setError(null);
                 try {
@@ -179,8 +169,10 @@
                         const res = await octokit.repos.listForAuthenticatedUser({ sort: "updated", per_page: 30 });
                         setRepos(res.data);
                     } else if (service === 'gas' && gasToken) {
-                        const res = await gasFetch("https://script.googleapis.com/v1/projects");
-                        setRepos(res.projects || []);
+                        // FIX: Use Drive API to list Apps Script files
+                        const res = await gasFetch("https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.script' and trashed=false&fields=files(id, name)");
+                        const projects = res.files.map(f => ({ ...f, scriptId: f.id }));
+                        setRepos(projects);
                     }
                     setView("repos");
                 } catch(e) { setError(e.message); }
@@ -198,7 +190,6 @@
                         data.sort((a, b) => (b.type === "dir" ? 1 : 0) - (a.type === "dir" ? 1 : 0));
                         setFiles(data); setCurrentRepo(item); setPath("");
                     } else {
-                        // GAS: Fetch all content, simulate file structure
                         const res = await gasFetch(`https://script.googleapis.com/v1/projects/${item.scriptId}/content`);
                         const mapped = (res.files || []).map(f => ({ name: f.name + (f.type==='HTML'?'.html':'.gs'), type: 'file', sha: f.name, rawType: f.type, source: f.source }));
                         setFiles(mapped); setCurrentRepo(item); setPath("");
@@ -216,7 +207,6 @@
                         const content = new TextDecoder().decode(Uint8Array.from(atob(res.data.content.replace(/\n/g, "")), c => c.charCodeAt(0)));
                         setFileContent(content); setFileSha(res.data.sha); setFilePath(file.path);
                     } else {
-                        // GAS: Content is already in file object, but we might reload for freshness if needed
                         setFileContent(file.source); setFileSha(file.sha); setFilePath(file.name); 
                     }
                     setView("editor");
@@ -233,20 +223,17 @@
                         if (fileSha) payload.sha = fileSha;
                         await octokit.repos.createOrUpdateFileContents(payload);
                     } else {
-                        // GAS: Must upload ALL files to update one. Fetch all, replace one, push back.
                         const res = await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/content`);
                         const newFiles = res.files.map(f => {
                             const fname = f.name + (f.type==='HTML'?'.html':'.gs');
                             return fname === filePath ? { ...f, source: fileContent } : f;
                         });
-                        // If new file
                         if(!res.files.find(f => (f.name + (f.type==='HTML'?'.html':'.gs')) === filePath)) {
                             const name = filePath.replace(/\.(gs|html)$/, "");
                             const type = filePath.endsWith(".html") ? "HTML" : "SERVER_JS";
                             newFiles.push({ name, type, source: fileContent });
                         }
                         await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/content`, "PUT", { files: newFiles });
-                        // Reload file list
                         const mapped = newFiles.map(f => ({ name: f.name + (f.type==='HTML'?'.html':'.gs'), type: 'file', sha: f.name, rawType: f.type, source: f.source }));
                         setFiles(mapped);
                     }
@@ -256,13 +243,10 @@
                 setLoading(false);
             };
 
-            // --- GAS DEPLOYMENT ---
             const handleDeployGas = async () => {
                 setLoading(true);
                 try {
-                    // Create Version
                     const ver = await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/versions`, "POST", { description: deployDesc });
-                    // Create Deployment
                     await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/deployments`, "POST", {
                         versionNumber: ver.versionNumber,
                         description: deployDesc,
@@ -277,34 +261,25 @@
             const handleUpdateManifest = async () => {
                 setLoading(true);
                 try {
-                    // Fetch existing content
                     const res = await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/content`);
                     let manifest = res.files.find(f => f.name === 'appsscript' && f.type === 'JSON');
                     let json = manifest ? JSON.parse(manifest.source) : {};
-                    
-                    // Update WebApp settings
                     json.webapp = { access: gasAccess, executeAs: gasExecute };
-                    
-                    // Push back
                     const newFiles = res.files.map(f => f.name === 'appsscript' ? { ...f, source: JSON.stringify(json, null, 2) } : f);
                     await gasFetch(`https://script.googleapis.com/v1/projects/${currentRepo.scriptId}/content`, "PUT", { files: newFiles });
-                    
                     alert("Permissions Updated!");
                     setModalMode(null);
                 } catch(e) { alert("Update failed: " + e.message); }
                 setLoading(false);
             };
 
-            // --- ACTIONS ---
             const handleCreate = async () => {
                 setLoading(true);
                 try {
                     if (service === 'git') {
                         if (modalMode === 'createRepo') { await octokit.repos.createForAuthenticatedUser({ name: inputName, auto_init: true }); loadData(); }
-                        else { /* Git File Logic handled in render */ }
                     } else {
                         if (modalMode === 'createRepo') { await gasFetch("https://script.googleapis.com/v1/projects", "POST", { title: inputName }); loadData(); }
-                        else { /* GAS File Logic handled via save */ }
                     }
                     if(modalMode === 'createFile') {
                         setFilePath(inputName); setFileContent(""); setCommitMsg("Init"); setView("editor");
@@ -318,7 +293,6 @@
                 localStorage.setItem("service", s); setService(s); setRepos([]); setFiles([]); setView('repos');
             };
 
-            // Render Logic
             const isLoggedIn = (service === 'git' && ghToken) || (service === 'gas' && gasToken);
 
             if (!isLoggedIn) {
@@ -339,7 +313,6 @@
 
             return (
                 <div className="pb-20 max-w-2xl mx-auto min-h-screen flex flex-col relative text-slate-900 dark:text-gray-100" onClick={() => setShowGlobalMenu(false)}>
-                    {/* Header */}
                     <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-gray-200 dark:border-slate-800 p-3 flex items-center justify-between z-50">
                         <div className="flex items-center gap-2 overflow-hidden">
                             {view !== "repos" && <button onClick={() => view === 'editor' ? setView('files') : loadData()} className="p-1.5 bg-gray-100 dark:bg-slate-800 rounded-full"><Icons.Back /></button>}
@@ -357,7 +330,6 @@
                         </div>
                     </div>
 
-                    {/* Global Menu */}
                     {showGlobalMenu && (
                         <div className="menu-dropdown bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl p-1 flex flex-col">
                             <button onClick={() => window.location.reload()} className="flex gap-2 p-2.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded text-sm"><span className="text-emerald-500"><Icons.Refresh /></span> Refresh</button>
@@ -366,7 +338,6 @@
                         </div>
                     )}
 
-                    {/* Modals */}
                     {modalMode && (
                         <div className="modal-bg">
                             <div className="bg-white dark:bg-slate-800 p-4 rounded-lg w-10/12 max-w-xs shadow-2xl space-y-3">
@@ -412,12 +383,12 @@
                         </div>
                     )}
 
-                    {/* Content */}
                     <div className="p-2 flex-1 relative">
                         {loading && <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 z-10 flex pt-20 justify-center"><div className="loader"></div></div>}
 
                         {!loading && view === "repos" && (
                             <div className="space-y-2">
+                                {repos.length === 0 && <div className="text-center text-gray-400 mt-10">Empty</div>}
                                 {repos.map(r => (
                                     <div key={r.id || r.scriptId} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden shadow-sm">
                                         <div onClick={() => loadFiles(r)} className="p-3 active:bg-gray-50 dark:active:bg-slate-700 cursor-pointer">
@@ -425,7 +396,6 @@
                                                 <h3 className="font-semibold text-base text-blue-600 dark:text-blue-100">{r.name || r.title}</h3>
                                             </div>
                                         </div>
-                                        {/* Action Bar (Service Specific) */}
                                         <div className="flex divide-x divide-gray-200 dark:divide-slate-700 bg-gray-50 dark:bg-slate-800/50">
                                             {service === 'git' ? (
                                                 <>
