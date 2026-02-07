@@ -321,22 +321,27 @@
                 setLoading(false);
             };
 
-            const getGasWebUrl = async (repo) => {
+            const handleGasUrl = async (repo, action) => {
                 toast("Fetching URL...");
                 try {
                     const res = await gasFetch(`https://script.googleapis.com/v1/projects/${repo.scriptId}/deployments`);
-                    // Find latest deployment with a Web URL
                     const dep = res.deployments?.find(d => d.entryPoints?.some(e => e.webApp));
+                    
                     if (dep) {
                         const url = dep.entryPoints.find(e => e.webApp).webApp.url;
-                        if(confirm(`URL Found:\n${url}\n\nCopy to clipboard?`)) {
+                        if (action === 'open') {
+                            window.open(url, '_blank');
+                        } else {
                             navigator.clipboard.writeText(url);
                             toast("Copied!");
                         }
                     } else {
                         alert("No Web App deployment found.");
                     }
-                } catch(e) { alert("Failed to fetch URL."); }
+                } catch(e) { 
+                    console.error(e);
+                    alert("Failed to fetch URL."); 
+                }
             };
 
             const handleUpdateManifest = async () => {
@@ -401,8 +406,6 @@
                 } else if (action === 'launch') {
                     if(service === 'git') window.open(`https://${repo.owner.login}.github.io/${repo.name}/`, '_blank');
                     else window.open(`https://script.google.com/d/${repo.scriptId}/edit`, '_blank');
-                } else if (action === 'link') {
-                    getGasWebUrl(repo);
                 }
             };
 
@@ -546,7 +549,11 @@
                                                     <button onClick={(e) => { e.stopPropagation(); setCurrentRepo(r); setModalMode('manifestGas'); }} className="flex-1 p-2 flex justify-center text-purple-500"><Icons.Settings /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); setCurrentRepo(r); setModalMode('deployGas'); }} className="flex-1 p-2 flex justify-center text-green-500"><Icons.Zap /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); setInputName(r.name); setCurrentRepo(r); setModalMode('renameRepo'); }} className="flex-1 p-2 flex justify-center text-orange-500"><Icons.Edit /></button>
-                                                    <button onClick={(e) => repoAction('link', r, e)} className="flex-1 p-2 flex justify-center text-blue-500"><Icons.Link /></button>
+                                                    
+                                                    {/* UPDATED: Two buttons for Copy and Open */}
+                                                    <button onClick={(e) => { e.stopPropagation(); handleGasUrl(r, 'copy'); }} className="flex-1 p-2 flex justify-center text-gray-500 hover:text-blue-500" title="Copy URL"><Icons.Copy /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleGasUrl(r, 'open'); }} className="flex-1 p-2 flex justify-center text-blue-500 hover:text-blue-700" title="Open URL"><Icons.Link /></button>
+                                                    
                                                     <button onClick={(e) => repoAction('delete', r, e)} className="flex-1 p-2 flex justify-center text-red-500"><Icons.Trash /></button>
                                                 </>
                                             )}
