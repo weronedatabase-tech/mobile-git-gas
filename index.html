@@ -61,6 +61,7 @@
         const GAS_PROXY_URL = "https://script.google.com/macros/s/AKfycbw83udtxsHNQ2bnJLikBePT6QM3-hkNWf-8Rci7QhXPYQAasSLEo_snW0n1uK6SQDaY/exec";
         const GOOGLE_CLIENT_ID = "91778409538-4i31u5ia07ibb4o1ctv5c1sr7jpv3k1k.apps.googleusercontent.com"; 
         
+        // SCOPES: Full Drive access required to see linked scripts and delete projects
         const GOOGLE_SCOPES = "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/drive";
 
         // --- ICONS ---
@@ -76,6 +77,7 @@
             Trash: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
             Zap: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>,
             Globe: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>,
+            Link: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
             Menu: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>,
             Refresh: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>,
             Copy: () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>,
@@ -89,7 +91,6 @@
             useEffect(() => { document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem("theme", theme); }, [theme]);
             const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
-            // --- STATE ---
             const [service, setService] = useState(localStorage.getItem("service") || "git");
             const [ghToken, setGhToken] = useState(localStorage.getItem("gh_token"));
             const [gasToken, setGasToken] = useState(localStorage.getItem("gas_token"));
@@ -114,7 +115,6 @@
             const [showGlobalMenu, setShowGlobalMenu] = useState(false);
             const [manualPasteText, setManualPasteText] = useState("");
 
-            // GAS Config
             const [gasAccess, setGasAccess] = useState("ANYONE_ANONYMOUS");
             const [gasExecute, setGasExecute] = useState("USER_DEPLOYING");
 
@@ -153,7 +153,6 @@
                 setRepos([]); setView("repos"); setShowGlobalMenu(false);
             };
 
-            // --- API CLIENTS ---
             const octokit = useMemo(() => ghToken ? new Octokit({ auth: ghToken }) : null, [ghToken]);
             
             const gasFetch = async (url, method = "GET", body = null) => {
@@ -167,8 +166,7 @@
                     const err = await res.json();
                     throw new Error(err.error?.message || "GAS API Error");
                 }
-                // FIX: Check for No Content (Delete returns 204)
-                if (res.status === 204) return null;
+                if (res.status === 204) return null; // Handle No Content (Delete)
                 return res.json();
             };
 
@@ -180,8 +178,8 @@
                         const res = await octokit.repos.listForAuthenticatedUser({ sort: "updated", per_page: 30 });
                         setRepos(res.data);
                     } else if (service === 'gas' && gasToken) {
-                        // Use Drive API to list ALL scripts
-                        const res = await gasFetch("https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.script' and trashed=false&fields=files(id, name, modifiedTime)&orderBy=modifiedTime desc&pageSize=50");
+                        // FIX: Added includeItemsFromAllDrives and supportsAllDrives to find linked/bound scripts
+                        const res = await gasFetch("https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.script' and trashed=false&fields=files(id, name, modifiedTime)&orderBy=modifiedTime desc&pageSize=100&includeItemsFromAllDrives=true&supportsAllDrives=true");
                         const projects = (res.files || []).map(f => ({ ...f, scriptId: f.id, updated_at: f.modifiedTime }));
                         setRepos(projects);
                     }
@@ -297,6 +295,7 @@
                 setLoading(false);
             };
 
+            // --- DEPLOYMENTS & UTILS ---
             const handleDeployGas = async () => {
                 setLoading(true);
                 try {
@@ -322,6 +321,24 @@
                 setLoading(false);
             };
 
+            const getGasWebUrl = async (repo) => {
+                toast("Fetching URL...");
+                try {
+                    const res = await gasFetch(`https://script.googleapis.com/v1/projects/${repo.scriptId}/deployments`);
+                    // Find latest deployment with a Web URL
+                    const dep = res.deployments?.find(d => d.entryPoints?.some(e => e.webApp));
+                    if (dep) {
+                        const url = dep.entryPoints.find(e => e.webApp).webApp.url;
+                        if(confirm(`URL Found:\n${url}\n\nCopy to clipboard?`)) {
+                            navigator.clipboard.writeText(url);
+                            toast("Copied!");
+                        }
+                    } else {
+                        alert("No Web App deployment found.");
+                    }
+                } catch(e) { alert("Failed to fetch URL."); }
+            };
+
             const handleUpdateManifest = async () => {
                 setLoading(true);
                 try {
@@ -342,7 +359,7 @@
                 if(!inputName) return;
                 
                 if (modalMode === 'createRepo') { 
-                    setModalMode(null); // Immediate dismiss
+                    setModalMode(null); 
                     setLoading(true);
                     try {
                         if(service === 'git') {
@@ -380,10 +397,12 @@
                     } catch(e) { alert("Delete failed: " + e.message); }
                     setLoading(false);
                 } else if (action === 'pages') {
-                    // Git Pages Logic (Keep existing)
+                    // Git Pages Logic
                 } else if (action === 'launch') {
                     if(service === 'git') window.open(`https://${repo.owner.login}.github.io/${repo.name}/`, '_blank');
                     else window.open(`https://script.google.com/d/${repo.scriptId}/edit`, '_blank');
+                } else if (action === 'link') {
+                    getGasWebUrl(repo);
                 }
             };
 
@@ -441,6 +460,7 @@
                     {showGlobalMenu && (
                         <div className="menu-dropdown bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl p-1 flex flex-col">
                             <button onClick={() => window.location.reload()} className="flex gap-2 p-2.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded text-sm"><span className="text-emerald-500"><Icons.Refresh /></span> Refresh</button>
+                            {service === 'gas' && <button onClick={googleLogin} className="flex gap-2 p-2.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded text-sm"><span className="text-blue-500"><Icons.Drive /></span> Grant Permissions</button>}
                             <div className="h-px bg-gray-200 dark:bg-slate-700 my-1"></div>
                             <button onClick={logout} className="flex gap-2 p-2.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded text-sm text-red-500"><Icons.Logout /> Logout</button>
                         </div>
@@ -526,6 +546,7 @@
                                                     <button onClick={(e) => { e.stopPropagation(); setCurrentRepo(r); setModalMode('manifestGas'); }} className="flex-1 p-2 flex justify-center text-purple-500"><Icons.Settings /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); setCurrentRepo(r); setModalMode('deployGas'); }} className="flex-1 p-2 flex justify-center text-green-500"><Icons.Zap /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); setInputName(r.name); setCurrentRepo(r); setModalMode('renameRepo'); }} className="flex-1 p-2 flex justify-center text-orange-500"><Icons.Edit /></button>
+                                                    <button onClick={(e) => repoAction('link', r, e)} className="flex-1 p-2 flex justify-center text-blue-500"><Icons.Link /></button>
                                                     <button onClick={(e) => repoAction('delete', r, e)} className="flex-1 p-2 flex justify-center text-red-500"><Icons.Trash /></button>
                                                 </>
                                             )}
